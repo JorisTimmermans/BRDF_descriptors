@@ -29,7 +29,12 @@ import os
 from pathlib import Path
 
 import numpy as np
-import gdal
+
+try:
+    from osgeo import gdal
+except ImportError:
+    import gdal
+    
 
 __author__ = "J Gomez-Dans"
 __copyright__ = "Copyright 2017, 2018 J Gomez-Dans"

@@ -29,25 +29,30 @@ import os
 from pathlib import Path
 
 import numpy as np
-import gdal
+
+try:
+    from osgeo import gdal
+except ImportError:
+    import gdal
 
 __author__ = "J Gomez-Dans"
 __copyright__ = "Copyright 2017, 2018 J Gomez-Dans"
 __license__ = "GPLv3"
 __email__ = "j.gomez-dans@ucl.ac.uk"
 
-GDAL2NUMPY = {gdal.GDT_Byte:   np.uint8,
-              gdal.GDT_UInt16:   np.uint16,
-              gdal.GDT_Int16:   np.int16,
-              gdal.GDT_UInt32:   np.uint32,
-              gdal.GDT_Int32:   np.int32,
-              gdal.GDT_Float32:   np.float32,
-              gdal.GDT_Float64:   np.float64,
-              gdal.GDT_CInt16:   np.complex64,
-              gdal.GDT_CInt32:   np.complex64,
-              gdal.GDT_CFloat32:   np.complex64,
-              gdal.GDT_CFloat64:   np.complex128
+GDAL2NUMPY = {gdal.GDT_Byte: np.uint8,
+              gdal.GDT_UInt16: np.uint16,
+              gdal.GDT_Int16: np.int16,
+              gdal.GDT_UInt32: np.uint32,
+              gdal.GDT_Int32: np.int32,
+              gdal.GDT_Float32: np.float32,
+              gdal.GDT_Float64: np.float64,
+              gdal.GDT_CInt16: np.complex64,
+              gdal.GDT_CInt32: np.complex64,
+              gdal.GDT_CFloat32: np.complex64,
+              gdal.GDT_CFloat64: np.complex128
               }
+
 
 def find_granules(dire, tile, product, start_time, end_time):
     """Find MCD43 granules based on folder, tile and product type (A1
@@ -59,19 +64,19 @@ def find_granules(dire, tile, product, start_time, end_time):
     start_year = start_time.year
     end_year = end_time.year
     granules_start = path.rglob(f"**/MCD43{product:s}.A{start_year:4d}*.{tile:s}.*.hdf")
-    granules = [f  for f in granules_start] 
+    granules = [f for f in granules_start]
     if end_year != start_year:
         granules_end = path.rglob(f"**/MCD43{product:s}.A{end_year:4d}*.{tile:s}.*.hdf")
-        granules = granules + [f for f in granules_end] 
+        granules = granules + [f for f in granules_end]
     granules = list(set(granules))
     if len(granules) == 0:
         raise IOError("Couldn't find any MCD43%s files in %s" % (product, dire))
     for granule in granules:
-        fich = os.path.basename (granule)
+        fich = os.path.basename(granule)
         timex = datetime.datetime.strptime(fich.split(".")[1][1:], "%Y%j")
         if timex >= start_time and \
-            (end_time is None or timex <= end_time ):
-            times.append (timex)
+                (end_time is None or timex <= end_time):
+            times.append(timex)
             fnames.append(granule.as_posix())
     return dict(list(zip(times, fnames)))
 
@@ -112,7 +117,7 @@ def open_gdal_dataset(fname, roi=None):
         xcount = lrx - ulx
         ycount = lry - uly
         data = g.ReadAsArray(xoff, yoff, xcount, ycount).astype(
-                             GDAL2NUMPY[g.GetRasterBand(1).DataType])
+            GDAL2NUMPY[g.GetRasterBand(1).DataType])
     return data
 
 
@@ -130,7 +135,7 @@ def process_masked_kernels(band_no, a1_granule, a2_granule,
 
     fsnow = fname_a2 + 'Snow_BRDF_Albedo'
     fland = fname_a2 + 'BRDF_Albedo_LandWaterType'
-    func = fname_a2 + 'BRDF_Albedo_Uncertainty'   # % a2_granule
+    func = fname_a2 + 'BRDF_Albedo_Uncertainty'  # % a2_granule
     try:
         fqa = fname_a2 + 'BRDF_Albedo_Band_Quality_Band%d' % band_no
     except TypeError:
@@ -146,28 +151,28 @@ def process_masked_kernels(band_no, a1_granule, a2_granule,
             snow = process_snow(data)
         elif fname.find("XXXXXLandWaterType") >= 0:
             shp = data.shape
-            land = np.in1d(data, [1, 3, 4, 5])    # data == 1 # Only land
+            land = np.in1d(data, [1, 3, 4, 5])  # data == 1 # Only land
             land = land.reshape(shp)
 
         # elif fname.find("BRDF_Albedo_Uncertainty") >= 0:
         #    unc = process_unc (data)
         elif fname.find("BRDF_Albedo_Band_Quality") >= 0 or \
                 fname.find("BRDF_Albedo_Band_Mandatory_Quality") >= 0:
-            qa = np.where(data <= 1, True, False)   # Best & good
-            qa_val = data*1
+            qa = np.where(data <= 1, True, False)  # Best & good
+            qa_val = data * 1
 
     # Create mask:
     # 1. Ignore snow
     # 2. Only land
     # 3. Only good and best
-    mask = snow * qa   # *land * qa
+    mask = snow * qa  # *land * qa
     qa_val = np.where(mask, qa_val, np.nan)
     return kernels, mask, qa_val
 
 
 def process_unc(unc):
     """Process uncertainty. Fuck know what it means..."""
-    unc = np.where(unc == 32767, np.nan, unc/1000.)
+    unc = np.where(unc == 32767, np.nan, unc / 1000.)
 
 
 def process_snow(snow):
@@ -177,7 +182,7 @@ def process_snow(snow):
 
 def process_kernels(kernels):
     """Scales the kernels, maybe does other things"""
-    kernels = np.where(kernels == 32767, np.nan, kernels/1000.)
+    kernels = np.where(kernels == 32767, np.nan, kernels / 1000.)
     return kernels
 
 
@@ -225,14 +230,15 @@ class RetrieveBRDFDescriptors(object):
         self.band_transfer = None
 
         if roi is not None:
-            assert len(roi) == 4,\
-                        f"ROI box needs 4 elements! It has only {len(roi)}!"
+            assert len(roi) == 4, \
+                f"ROI box needs 4 elements! It has only {len(roi)}!"
             ulx, uly, lrx, lry = roi
-            assert(ulx < lrx), f" ulx{ulx} !< lrx{lrx}"
-            assert(uly < lry), f" uly{uly} !< lry{lry}"
+            assert (ulx < lrx), f" ulx{ulx} !< lrx{lrx}"
+            assert (uly < lry), f" uly{uly} !< lry{lry}"
             self.roi = roi
         else:
             self.roi = None
+
     def get_brdf_descriptors(self, band_no, date):
         #        if not (1 <= band_no <= 7) :
         #            raise ValueError ("Bands can only go from 1 to 7!")
@@ -254,13 +260,13 @@ if __name__ == "__main__":
     mcd43a1_dir = "/group_workspaces/cems2/qa4ecv/vol2/modis.c6.brdf/ladsweb.nascom.nasa.gov/allData/6/MCD43A1/2015/"
     mcd43a2_dir = "/group_workspaces/cems2/qa4ecv/vol2/modis.c6.brdf/ladsweb.nascom.nasa.gov/allData/6/MCD43A2/2015/"
     rr = RetrieveBRDFDescriptors("h17v05",
-                                 mcd43a1_dir, 
+                                 mcd43a1_dir,
                                  "2015-01-01", mcd43a2_dir=mcd43a2_dir,
                                  end_time="2015-12-31")
-    roi=[1100, 640, 1400,740]
+    roi = [1100, 640, 1400, 740]
     rr_chunk = RetrieveBRDFDescriptors("h17v05",
-                                 mcd43a1_dir,
-                                 "2015-01-01", 
-                                 mcd43a2_dir=mcd43a2_dir,
-                                 end_time="2015-12-31",
-                                    roi=roi)
+                                       mcd43a1_dir,
+                                       "2015-01-01",
+                                       mcd43a2_dir=mcd43a2_dir,
+                                       end_time="2015-12-31",
+                                       roi=roi)
